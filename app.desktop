@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=chasm
+GenericName=Chip-8 Assember
+Exec=chasm
+Icon=chasm
+Categories=Utility
+Terminal=true
