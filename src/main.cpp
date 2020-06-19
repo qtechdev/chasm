@@ -3,17 +3,21 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <regex>
 #include <set>
 #include <string>
 #include <vector>
 
+#include <qxdg/qxdg.hpp>
+
 #include "chasm.hpp"
 #include "util/file_io.hpp"
 #include "util/fsm.hpp"
-#include "util/xdg.hpp"
 
 std::vector<uint8_t> program;
+static const std::regex program_re(R"re((.*)(\.chasm)$)re");
 
 std::vector<std::string> read_lines(const std::string &path) {
   std::vector<std::string> lines;
@@ -31,15 +35,27 @@ std::vector<std::string> read_lines(const std::string &path) {
 
 int main(int argc, const char *argv[]) {
   xdg::base base_dirs = xdg::get_base_directories();
-  auto program_path = xdg::get_data_path(base_dirs, "chasm", "ex.chasm");
-  auto binary_path = xdg::get_data_path(base_dirs, "chasm", "out", true);
-  std::cout << *binary_path << "\n";
+  auto program_files = xdg::search_data_dirs(base_dirs, "qchip", program_re);
 
-  if (!program_path) {
-    return 1;
+  int index = 0;
+  while ((index < 1) || (index > program_files.size())) {
+    std::cout << "Choose program!\n";
+    for (int i = 0; i < program_files.size(); i++) {
+      std::cout << (i + 1) << ") " << program_files[i] << "\n";
+    }
+
+    std::cin >> index;
+    if (std::cin.fail()) {
+      std::cin.clear();
+      std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
   }
 
-  std::vector<std::string> lines = read_lines(*program_path);
+  std::string program_path = program_files[index - 1];
+  std::string binary_path = std::regex_replace(
+    program_path, program_re, "$1.ch8"
+  );
+  std::vector<std::string> lines = read_lines(program_path);
 
   int line_number = 0;
   int line_error = 0;
@@ -86,7 +102,7 @@ int main(int argc, const char *argv[]) {
     #endif
   }
 
-  fio::write(*binary_path, program, true);
+  fio::write(binary_path, program, true);
 
   #ifdef DEBUG
   char buf[3];

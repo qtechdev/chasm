@@ -3,8 +3,8 @@ OBJECTS=$(patsubst src/%,build/%,${SOURCES:.cpp=.o})
 DIRS=$(filter-out build/,$(sort $(dir ${OBJECTS})))
 
 CXX=g++
-LD_FLAGS=
-CXX_FLAGS=-std=c++17 -I./include
+LD_FLAGS=-lqxdg
+CXX_FLAGS=-std=c++17
 
 NAME=chasm
 BINARY=out/${NAME}
