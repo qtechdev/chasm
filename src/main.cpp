@@ -11,9 +11,9 @@
 #include <vector>
 
 #include <qxdg/qxdg.hpp>
+#include <qfio/qfio.hpp>
 
 #include "chasm.hpp"
-#include "util/file_io.hpp"
 #include "util/fsm.hpp"
 
 std::vector<uint8_t> program;
