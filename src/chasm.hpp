@@ -12,7 +12,16 @@
 
 namespace chasm {
   enum class error_t;
-  struct token_t;
+
+  enum class token_type;
+  enum class token_value;
+
+  struct token_t {
+    token_type type;
+    token_value value;
+    uint16_t ival = 0;
+    std::string sval = "";
+  };
 
   class assembler {
   public:
@@ -24,8 +33,10 @@ namespace chasm {
       const std::vector<std::string> &s, error_t &error
     );
   private:
+    static constexpr uint16_t entry_point = 0x200;
     uint16_t current_address;
     std::map<std::string, int> labels;
+    std::vector<std::vector<chasm::token_t>> tokenised;
   };
 
   token_t str_to_token(const std::string &s);

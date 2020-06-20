@@ -77,17 +77,10 @@ namespace chasm {
     V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF,
     INT_LITERAL, LABEL, UNKNOWN
   };
-
-  struct token_t {
-    token_type type;
-    token_value value;
-    uint16_t ival = 0;
-    std::string sval = "";
-  };
 };
 
 chasm::assembler::assembler() {
-  current_address = 0x200;
+  current_address = entry_point;
   labels = {};
 }
 
@@ -97,12 +90,23 @@ std::vector<uint8_t> chasm::assembler::operator()(
   std::vector<uint8_t> program;
   int line_number = 0;
   int line_error = 0;
-  std::map<std::string, int> labels;
+
+  // validate program file
   for (const std::string &line : lines) {
-    chasm::error_t error = chasm::error_t::success;
+    if (line == "") {
+      continue;
+    }
+
+    error_t error = error_t::success;
     std::vector<std::string> split_line = scan(line, error);
+    #ifdef DEBUG
+    for (const std::string &s : split_line) {
+      std::cout << s << " ";
+    }
+    std::cout << "\n";
+    #endif
     line_number++;
-    if (error != chasm::error_t::success) {
+    if (error != error_t::success) {
       char buf[512];
       snprintf(
         buf, 512, "Invalid Program!\nError on line %d.\n>>%s\n",
@@ -111,8 +115,14 @@ std::vector<uint8_t> chasm::assembler::operator()(
       throw std::invalid_argument(buf);
     }
 
-    std::vector<chasm::token_t> tokens = eval(split_line, error);
-    if (error != chasm::error_t::success) {
+    std::vector<token_t> tokens = eval(split_line, error);
+    #ifdef DEBUG
+    for (auto &t : tokens) {
+      std::cout << t << " ";
+    }
+    std::cout << "\n";
+    #endif
+    if (error != error_t::success) {
       char buf[512];
       snprintf(
         buf, 512, "Invalid Command!\nError on line %d.\n>>%s\n",
@@ -121,36 +131,36 @@ std::vector<uint8_t> chasm::assembler::operator()(
       throw std::invalid_argument(buf);
     }
 
-    if (tokens[1].type == token_type::LABEL) {
-      tokens[1].ival = labels.at(tokens[1].sval);
+    tokenised.push_back(tokens);
+  }
+
+  // build label table
+  current_address = entry_point;
+  for (const std::vector<token_t> &tokens : tokenised) {
+    if (tokens[0].type == token_type::LABEL) {
+      labels[tokens[0].sval] = current_address;
+    } else {
+      current_address += 2;
+    }
+  }
+
+  // assemble
+  current_address = entry_point;
+  for (std::vector<token_t> &tokens : tokenised) {
+    if (tokens[0].type == token_type::LABEL) {
+      continue;
     }
 
     uint16_t binary = 0;
 
-    if (tokens[0].type == token_type::LABEL) {
-      labels[tokens[0].sval] = current_address;
-    } else {
-      binary = tokens_to_binary(tokens);
-      program.push_back(binary >> 8);
-      program.push_back(binary & 0x00ff);
-      current_address += 2;
+    if (tokens[1].type == token_type::LABEL) {
+      tokens[1].ival = labels.at(tokens[1].sval);
     }
 
-    #ifdef DEBUG
-    for (const std::string &s : split_line) {
-      std::cout << s << " ";
-    }
-    std::cout << "\n";
-
-    for (auto &t : tokens) {
-      std::cout << t << " ";
-    }
-    std::cout << "\n";
-
-    char buf[5];
-    snprintf(buf, 5, "%04x", binary);
-    std::cout << buf << "\n\n";
-    #endif
+    binary = tokens_to_binary(tokens);
+    program.push_back(binary >> 8);
+    program.push_back(binary & 0x00ff);
+    current_address += 2;
   }
 
   return program;
