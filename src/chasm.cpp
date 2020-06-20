@@ -1,17 +1,165 @@
+#ifdef DEBUG
 #include <iostream>
+#endif
 
 #include <array>
 #include <cstdint>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "chasm.hpp"
 #include "util/fsm.hpp"
 
+namespace chasm {
+  static constexpr uint16_t ARG_REG = 0b0001;
+  static constexpr uint16_t ARG_VAL = 0b0010;
+  static constexpr uint16_t ARG_ADR = 0b0100;
 
-std::vector<std::string> chasm::scan(const std::string &s, error_t *error) {
-  *error = error_t::success;
+  static constexpr uint16_t ARG_0    = 0x0000;
+  static constexpr uint16_t ARG_R    = 0x0001 | (ARG_REG << 4);
+  static constexpr uint16_t ARG_RR   = 0x0002 | (ARG_REG << 4) | (ARG_REG << 8);
+  static constexpr uint16_t ARG_RV   = 0x0002 | (ARG_REG << 4) | (ARG_VAL << 8);
+  static constexpr uint16_t ARG_RRV  = 0x0003 | (ARG_REG << 4) | (ARG_REG << 8) | (ARG_VAL << 12);
+  static constexpr uint16_t ARG_ADDR = 0x0001 | (ARG_ADR << 4);
+
+  static const fsm::table_t opcode_table = fsm::make_table({
+    "clear", "ret", "jmp", "call", "seq", "sne", "seqr", "mov", "add", "movr",
+    "or", "and", "xor", "addr", "sub", "slr", "rsub", "sll", "sner", "movi",
+    "jmpv", "rand", "draw", "keq", "kne", "std", "key", "ldd", "lds", "addi",
+    "sprite", "bcd", "str", "ldr"
+  });
+
+  static const fsm::table_t register_table = fsm::make_table({
+    "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7",
+    "V8", "V9", "VA", "VB", "VC", "VD", "VE", "VF"
+  });
+
+  static const fsm::table_t hex_table = fsm::make_hex_table();
+
+  static const fsm::table_t label_table = []{
+    fsm::table_t table = {
+      {0, {}},
+      {1, {}}
+    };
+    table.at(0)[':'] = 1;
+
+    for (char c = 'a'; c <= 'z'; c++) {
+      table.at(1)[c] = 1;
+    }
+    for (char c = 'A'; c <= 'Z'; c++) {
+      table.at(1)[c] = 1;
+    }
+
+    table.at(1)['_'] = -1;
+    table.at(1)[' '] = -1;
+
+    return table;
+  }();
+
+  enum class error_t {
+    success = 0,
+    invalid_token = 1,
+    null_string = 2,
+    bad_arg_count = 3,
+    bad_arg_type = 4
+  };
+
+  enum class token_type {
+    OPCODE, REGISTER, INT_LITERAL, LABEL, UNKNOWN
+  };
+
+  enum class token_value {
+    CLEAR, RET, JMP, CALL, SEQ, SNE, SEQR, MOV, ADD, MOVR, OR, AND, XOR, ADDR,
+    SUB, SLR, RSUB, SLL, SNER, MOVI, JMPV, RAND, DRAW, KEQ, KNE, STD, KEY, LDD,
+    LDS, ADDI, SPRITE, BCD, STR, LDR, NOP, HALT,
+    V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF,
+    INT_LITERAL, LABEL, UNKNOWN
+  };
+
+  struct token_t {
+    token_type type;
+    token_value value;
+    uint16_t ival = 0;
+    std::string sval = "";
+  };
+};
+
+chasm::assembler::assembler() {
+  current_address = 0x200;
+  labels = {};
+}
+
+std::vector<uint8_t> chasm::assembler::operator()(
+  const std::vector<std::string> &lines
+) {
+  std::vector<uint8_t> program;
+  int line_number = 0;
+  int line_error = 0;
+  std::map<std::string, int> labels;
+  for (const std::string &line : lines) {
+    chasm::error_t error = chasm::error_t::success;
+    std::vector<std::string> split_line = scan(line, error);
+    line_number++;
+    if (error != chasm::error_t::success) {
+      char buf[512];
+      snprintf(
+        buf, 512, "Invalid Program!\nError on line %d.\n>>%s\n",
+        line_number, line.c_str()
+      );
+      throw std::invalid_argument(buf);
+    }
+
+    std::vector<chasm::token_t> tokens = eval(split_line, error);
+    if (error != chasm::error_t::success) {
+      char buf[512];
+      snprintf(
+        buf, 512, "Invalid Command!\nError on line %d.\n>>%s\n",
+        line_number, line.c_str()
+      );
+      throw std::invalid_argument(buf);
+    }
+
+    if (tokens[1].type == token_type::LABEL) {
+      tokens[1].ival = labels.at(tokens[1].sval);
+    }
+
+    uint16_t binary = 0;
+
+    if (tokens[0].type == token_type::LABEL) {
+      labels[tokens[0].sval] = current_address;
+    } else {
+      binary = tokens_to_binary(tokens);
+      program.push_back(binary >> 8);
+      program.push_back(binary & 0x00ff);
+      current_address += 2;
+    }
+
+    #ifdef DEBUG
+    for (const std::string &s : split_line) {
+      std::cout << s << " ";
+    }
+    std::cout << "\n";
+
+    for (auto &t : tokens) {
+      std::cout << t << " ";
+    }
+    std::cout << "\n";
+
+    char buf[5];
+    snprintf(buf, 5, "%04x", binary);
+    std::cout << buf << "\n\n";
+    #endif
+  }
+
+  return program;
+}
+
+std::vector<std::string> chasm::assembler::scan(
+  const std::string &s, error_t &error
+) {
+  error = error_t::success;
   std::vector<std::string> words;
   std::string word;
   std::istringstream iss(s);
@@ -19,69 +167,41 @@ std::vector<std::string> chasm::scan(const std::string &s, error_t *error) {
   fsm::error_t status;
   while (iss >> word) {
     // check for opcode
-    status = fsm::error_t::success;
-    fsm::machine opcode_machine{word, opcode_table};
-    while (!opcode_machine.end) {
-      status = fsm::next_state(opcode_machine);
-      if (status != fsm::error_t::success) {
-        opcode_machine.end = true;
-      }
-    }
-
-    if (status == fsm::error_t::success) {
-      words.push_back(word);
-      continue;
-    }
+    status = fsm::check(word, opcode_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
     // check for register
-    status = fsm::error_t::success;
-    fsm::machine register_machine{word, register_table};
-    while (!register_machine.end) {
-      status = fsm::next_state(register_machine);
-      if (status != fsm::error_t::success) {
-        register_machine.end = true;
-      }
-    }
-
-    if (status == fsm::error_t::success) {
-      words.push_back(word);
-      continue;
-    }
+    status = fsm::check(word, register_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
     // check for hex numbers
-    status = fsm::error_t::success;
-    fsm::machine hex_machine{word, hex_table};
-    while (!hex_machine.end) {
-      status = fsm::next_state(hex_machine);
-      if (status != fsm::error_t::success) {
-        hex_machine.end = true;
-      }
-    }
+    status = fsm::check(word, hex_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
-    if (status == fsm::error_t::success) {
-      words.push_back(word);
-      continue;
-    }
+    // check for labels
+    status = fsm::check(word, label_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
     words.push_back(">" + word + "<");
-    *error = error_t::invalid_token;
+    error = error_t::invalid_token;
   }
 
   return words;
 }
 
-std::vector<chasm::token_t> chasm::eval(
-  const std::vector<std::string> &s, error_t *error
+std::vector<chasm::token_t> chasm::assembler::eval(
+  const std::vector<std::string> &s, error_t &error
 ) {
-  *error = error_t::success;
+  error = error_t::success;
   std::vector<token_t> tokens;
 
   if (s.size() == 0) {
-    *error = error_t::null_string;
+    error = error_t::null_string;
     return {};
   }
 
   token_t token = str_to_token(s.at(0));
+
   tokens.push_back(token);
 
   uint16_t ival = token.ival;
@@ -89,7 +209,7 @@ std::vector<chasm::token_t> chasm::eval(
   ival >>= 4;
 
   if ((s.size() - 1) != num_args) {
-    *error = error_t::bad_arg_count;
+    error = error_t::bad_arg_count;
     return {};
   }
 
@@ -102,7 +222,7 @@ std::vector<chasm::token_t> chasm::eval(
       ((arg.type == token_type::REGISTER) && (arg_type != ARG_REG)) ||
       ((arg.type == token_type::INT_LITERAL) && ((arg_type != ARG_VAL) && (arg_type != ARG_ADR)))
     ) {
-      *error = error_t::bad_arg_type;
+      error = error_t::bad_arg_type;
       return {};
     }
 
@@ -169,42 +289,26 @@ chasm::token_t chasm::str_to_token(const std::string &s) {
   if (s == "VF") { return {token_type::REGISTER, token_value::VF, 0xF}; };
 
   fsm::error_t status = fsm::error_t::success;
-  fsm::machine hex_machine{s, hex_table};
-  while (!hex_machine.end) {
-    status = fsm::next_state(hex_machine);
-    if (status != fsm::error_t::success) {
-      hex_machine.end = true;
-    }
-  }
 
+  status = fsm::check(s, hex_table);
   if (status == fsm::error_t::success) {
     uint16_t n = std::stoi(s, nullptr, 16) & 0xffff;
     return {token_type::INT_LITERAL, token_value::INT_LITERAL, n};
   }
 
+  status = fsm::check(s, label_table);
+  if (status == fsm::error_t::success) {
+    return {token_type::LABEL, token_value::LABEL, 0, s};
+  }
 
   return {token_type::UNKNOWN, token_value::UNKNOWN};
 }
 
-uint16_t to_a(const uint16_t x) {
-  return (x & 0x0fff);
-}
-
-uint16_t to_x(const uint16_t x) {
-  return (x & 0x000f) << 8;
-}
-
-uint16_t to_y(const uint16_t x) {
-  return (x & 0x000f) << 4;
-}
-uint16_t to_n(const uint16_t x) {
-  return (x & 0x000f);
-}
-
-uint16_t to_v(const uint16_t x) {
-  return (x & 0x00ff);
-}
-
+static constexpr uint16_t to_a(const uint16_t x) { return (x & 0x0fff); }
+static constexpr uint16_t to_x(const uint16_t x) { return (x & 0x000f) << 8; }
+static constexpr uint16_t to_y(const uint16_t x) { return (x & 0x000f) << 4; }
+static constexpr uint16_t to_n(const uint16_t x) { return (x & 0x000f); }
+static constexpr uint16_t to_v(const uint16_t x) { return (x & 0x00ff);}
 
 uint16_t chasm::tokens_to_binary(const std::vector<token_t> &t) {
   uint16_t b = 0;
@@ -309,6 +413,7 @@ std::ostream &operator<<(std::ostream &os, const chasm::token_t &t) {
     case chasm::token_value::VE: os << "VE"; break;
     case chasm::token_value::VF: os << "VF"; break;
     case chasm::token_value::INT_LITERAL: os << "INT_LITERAL(" << t.ival << ")"; break;
+    case chasm::token_value::LABEL: os << "LABEL(" << t.sval << ")"; break;
     default: os << "UNKNOWN"; break;
   }
 

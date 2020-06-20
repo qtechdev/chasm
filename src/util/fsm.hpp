@@ -23,6 +23,7 @@ namespace fsm {
   };
 
   error_t next_state(machine &f);
+  error_t check(const std::string &s, const table_t &t);
 
   // some basic table templates
   table_t make_int_table();

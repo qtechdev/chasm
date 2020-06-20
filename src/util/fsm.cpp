@@ -35,6 +35,20 @@ fsm::error_t fsm::next_state(machine &f) {
   return error_t::success;
 };
 
+fsm::error_t fsm::check(const std::string &s, const table_t &t) {
+  error_t status = error_t::success;
+
+  machine m{s, t};
+  while (!m.end) {
+    status = next_state(m);
+    if (status != error_t::success) {
+      m.end = true;
+    }
+  }
+
+  return status;
+}
+
 
 fsm::table_t fsm::make_int_table() {
   table_t table = {
@@ -60,7 +74,6 @@ fsm::table_t fsm::make_hex_table() {
   };
   table.at(0)['0'] = 1;
   table.at(1)['x'] = 2;
-  // table[2] = {};
 
   for (char c = '0'; c <= '9'; c++) {
     table.at(2)[c] = 2;
@@ -158,34 +171,3 @@ void fsm::add_digit_transition(table_t &table) {
   table.at(index)['0'] = index;
   table.at(index)[' '] = -1;
 }
-
-
-//
-// int main(int argc, const char *argv[]) {
-//   table_t opcode_table = make_table({
-//     "clear", "ret", "jmp", "call", "seq", "sne", "seqr", "mov", "add", "movr",
-//     "or", "and", "xor", "addr", "sub", "slr", "rsub", "sll", "sner", "movi",
-//     "jmpv", "rand", "draw", "keq", "kne", "std", "key", "ldd", "lds", "addi",
-//     "sprite", "bcd", "str", "ldr",
-//   });
-//
-//   fsm f{line, opcode_table};
-//
-//   while (!f.end) {
-//     std::cout << f.s << ", " << f.index << ", " << f.state << "\n";
-//     auto error = next_state(f);
-//     if (error != fsm_error_t::success) {
-//       std::cout << "error::" << static_cast<int>(error) << "\n";
-//       f.end = true;
-//     }
-//   }
-//
-//   for (const auto &[state, transition] : opcode_table) {
-//     std::cout << state << " : \n";
-//     for (const auto &[c, next_state] : transition) {
-//       std::cout << "\t" << c << " -> " << next_state << "\n";
-//     }
-//   }
-//
-//   return 0;
-// }

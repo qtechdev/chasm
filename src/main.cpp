@@ -16,7 +16,6 @@
 #include "chasm.hpp"
 #include "util/fsm.hpp"
 
-std::vector<uint8_t> program;
 static const std::regex program_re(R"re((.*)(\.chasm)$)re");
 
 std::vector<std::string> read_lines(const std::string &path) {
@@ -57,50 +56,14 @@ int main(int argc, const char *argv[]) {
   );
   std::vector<std::string> lines = read_lines(program_path);
 
-  int line_number = 0;
-  int line_error = 0;
-  for (const auto &line : lines) {
-    chasm::error_t error = chasm::error_t::success;
-    std::vector<std::string> split_line = chasm::scan(line, &error);
-    line_number++;
-    if (error != chasm::error_t::success) {
-      line_error = line_number;
-      std::cerr << "Invalid program!\nError on line " << line_error << "\n";
-      std::cerr << ">> " << line << "\n";
-      return -1;
-    }
-
-    std::vector<chasm::token_t> tokens = chasm::eval(split_line, &error);
-    if (error != chasm::error_t::success) {
-      line_error = line_number;
-      std::cerr << "Invalid command!\nError on line " << line_error << "\n";
-      std::cerr << ">> " << line << "\n";
-      return -1;
-    }
-
-    for (const auto &s : split_line) {
-      std::cout << s << " ";
-    }
-    std::cout << "\n";
-
-    #ifdef DEBUG
-    for (auto &t : tokens) {
-      std::cout << t << " ";
-    }
-    std::cout << "\n";
-    #endif
-
-    uint16_t binary = tokens_to_binary(tokens);
-
-    program.push_back(binary >> 8);
-    program.push_back(binary & 0x00ff);
-
-    #ifdef DEBUG
-    char buf[5];
-    snprintf(buf, 5, "%04x", binary);
-    std::cout << buf << "\n\n";
-    #endif
-  }
+  chasm::assembler ch;
+  std::vector<uint8_t> program;
+  try {
+    program = ch(lines);
+  } catch (const std::invalid_argument &e) {
+    std::cerr << e.what() << "\n";
+    return -1;
+  };
 
   fio::write(binary_path, program, true);
 
