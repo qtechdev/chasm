@@ -28,7 +28,7 @@ namespace chasm {
     "clear", "ret", "jmp", "call", "seq", "sne", "seqr", "mov", "add", "movr",
     "or", "and", "xor", "addr", "sub", "slr", "rsub", "sll", "sner", "movi",
     "jmpv", "rand", "draw", "keq", "kne", "std", "key", "ldd", "lds", "addi",
-    "sprite", "bcd", "str", "ldr"
+    "sprite", "bcd", "str", "ldr", "nop", "halt"
   });
 
   static const fsm::table_t register_table = fsm::make_table({
