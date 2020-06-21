@@ -1,27 +1,27 @@
 clear
-mov V0 0x0
-mov V1 0x0
+mov &0 0x0
+mov &1 0x0
 
 :loop
 call :pick_random_sprite
-draw V0 V1 0x4
-add V0 0x4
+draw &0 &1 0x4
+add &0 0x4
 
 :new_line
-seq V0 0x40
+seq &0 0x40
 jmp :loop
-mov V0 0x0
-add V1 0x4
+mov &0 0x0
+add &1 0x4
 
 :end_program
-seq V1 0x20
+seq &1 0x20
 jmp :loop
 halt
 
 :pick_random_sprite
 movi :slash
-rand V2 0x1
-seq V2 0x1
+rand &2 0x1
+seq &2 0x1
 movi :back_slash
 ret
 

@@ -47,6 +47,6 @@ type        | min   | max
 [a]ddress   | 0x000 | 0xfff
 [b]yte      | 0x00  | 0xff
 [n]ibble    | 0x0   | 0xf
-[r]egister  | V0    | VF
+[r]egister  | &0    | &F
 
-Register index is always given as hex without prefix.
+Register index is always indicated by a `&` and given as hex without prefix.

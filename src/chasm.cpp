@@ -35,7 +35,10 @@ namespace chasm {
 
   static const fsm::table_t register_table = fsm::make_table({
     "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7",
-    "V8", "V9", "VA", "VB", "VC", "VD", "VE", "VF"
+    "V8", "V9", "VA", "VB", "VC", "VD", "VE", "VF",
+    "&0", "&1", "&2", "&3", "&4", "&5", "&6", "&7", "&8", "&9",
+    "&A", "&B", "&C", "&D", "&E", "&F",
+    "&a", "&b", "&c", "&d", "&e", "&f"
   });
 
   static const fsm::table_t hex_table = fsm::make_hex_table();
