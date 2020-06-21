@@ -16,6 +16,7 @@ namespace chasm {
   static constexpr uint16_t ARG_REG = 0b0001;
   static constexpr uint16_t ARG_VAL = 0b0010;
   static constexpr uint16_t ARG_ADR = 0b0100;
+  static constexpr uint16_t ARG_DAT = 0b1000;
 
   static constexpr uint16_t ARG_0    = 0x0000;
   static constexpr uint16_t ARG_R    = 0x0001 | (ARG_REG << 4);
@@ -23,6 +24,7 @@ namespace chasm {
   static constexpr uint16_t ARG_RV   = 0x0002 | (ARG_REG << 4) | (ARG_VAL << 8);
   static constexpr uint16_t ARG_RRV  = 0x0003 | (ARG_REG << 4) | (ARG_REG << 8) | (ARG_VAL << 12);
   static constexpr uint16_t ARG_ADDR = 0x0001 | (ARG_ADR << 4);
+  static constexpr uint16_t ARG_DATA = 0x0001 | (ARG_DAT << 4);
 
   static const fsm::table_t opcode_table = fsm::make_table({
     "clear", "ret", "jmp", "call", "seq", "sne", "seqr", "mov", "add", "movr",
@@ -58,6 +60,14 @@ namespace chasm {
     return table;
   }();
 
+  static const fsm::table_t data_table = []{
+    fsm::table_t table = {
+      {0, {{'$', 1}}},
+      {1, {{' ', -1}}}
+    };
+    return table;
+  }();
+
   enum class error_t {
     success = 0,
     invalid_token = 1,
@@ -67,7 +77,7 @@ namespace chasm {
   };
 
   enum class token_type {
-    OPCODE, REGISTER, INT_LITERAL, LABEL, UNKNOWN
+    OPCODE, REGISTER, INT_LITERAL, LABEL, DATA, UNKNOWN
   };
 
   enum class token_value {
@@ -75,7 +85,7 @@ namespace chasm {
     SUB, SLR, RSUB, SLL, SNER, MOVI, JMPV, RAND, DRAW, KEQ, KNE, STD, KEY, LDD,
     LDS, ADDI, SPRITE, BCD, STR, LDR, NOP, HALT,
     V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF,
-    INT_LITERAL, LABEL, UNKNOWN
+    INT_LITERAL, LABEL, DATA, UNKNOWN
   };
 };
 
@@ -99,12 +109,12 @@ std::vector<uint8_t> chasm::assembler::operator()(
 
     error_t error = error_t::success;
     std::vector<std::string> split_line = scan(line, error);
-    #ifdef DEBUG
-    for (const std::string &s : split_line) {
-      std::cout << s << " ";
-    }
-    std::cout << "\n";
-    #endif
+    // #ifdef DEBUG
+    // for (const std::string &s : split_line) {
+    //   std::cout << s << " ";
+    // }
+    // std::cout << "\n";
+    // #endif
     line_number++;
     if (error != error_t::success) {
       char buf[512];
@@ -192,6 +202,10 @@ std::vector<std::string> chasm::assembler::scan(
     status = fsm::check(word, label_table);
     if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
+    // check for data
+    status = fsm::check(word, data_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
+
     words.push_back(">" + word + "<");
     error = error_t::invalid_token;
   }
@@ -227,11 +241,17 @@ std::vector<chasm::token_t> chasm::assembler::eval(
     uint16_t arg_type = ival & 0xf;
     token_t arg = str_to_token(s.at(i));
 
-    if (
-      (arg.type == token_type::OPCODE) ||
-      ((arg.type == token_type::REGISTER) && (arg_type != ARG_REG)) ||
-      ((arg.type == token_type::INT_LITERAL) && ((arg_type != ARG_VAL) && (arg_type != ARG_ADR)))
-    ) {
+    static const bool is_opcode = arg.type == token_type::OPCODE;
+    static const bool bad_register =
+      (arg.type == token_type::REGISTER) &&
+      (arg_type != ARG_REG);
+    static const bool bad_int =
+      (arg.type == token_type::INT_LITERAL) &&
+      !(
+        (arg_type == ARG_VAL) || (arg_type == ARG_ADR) || (arg_type == ARG_DAT)
+      );
+
+    if (is_opcode || bad_register || bad_int) {
       error = error_t::bad_arg_type;
       return {};
     }
@@ -311,6 +331,11 @@ chasm::token_t chasm::str_to_token(const std::string &s) {
     return {token_type::LABEL, token_value::LABEL, 0, s};
   }
 
+  status = fsm::check(s, data_table);
+  if (status == fsm::error_t::success) {
+    return {token_type::DATA, token_value::DATA, ARG_DATA};
+  }
+
   return {token_type::UNKNOWN, token_value::UNKNOWN};
 }
 
@@ -359,6 +384,7 @@ uint16_t chasm::tokens_to_binary(const std::vector<token_t> &t) {
     case token_value::STR:    b = 0xf055 | to_x(t.at(1).ival); break;
     case token_value::LDR:    b = 0xf065 | to_x(t.at(1).ival); break;
     case token_value::HALT:   b = 0xffff; break;
+    case token_value::DATA:   b = t.at(1).ival; break;
     case token_value::NOP:
     default: b = 0x0000;
   }
@@ -424,6 +450,7 @@ std::ostream &operator<<(std::ostream &os, const chasm::token_t &t) {
     case chasm::token_value::VF: os << "VF"; break;
     case chasm::token_value::INT_LITERAL: os << "INT_LITERAL(" << t.ival << ")"; break;
     case chasm::token_value::LABEL: os << "LABEL(" << t.sval << ")"; break;
+    case chasm::token_value::DATA: os << "DATA" << t.sval << ""; break;
     default: os << "UNKNOWN"; break;
   }
 

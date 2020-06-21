@@ -1,0 +1,33 @@
+clear
+mov V0 0x0
+mov V1 0x0
+
+:loop
+call :pick_random_sprite
+draw V0 V1 0x4
+add V0 0x4
+
+:new_line
+seq V0 0x40
+jmp :loop
+mov V0 0x0
+add V1 0x4
+
+:end_program
+seq V1 0x20
+jmp :loop
+halt
+
+:pick_random_sprite
+movi :slash
+rand V2 0x1
+seq V2 0x1
+movi :back_slash
+ret
+
+:slash
+$ 0x1020
+$ 0x4080
+:back_slash
+$ 0x8040
+$ 0x2010
