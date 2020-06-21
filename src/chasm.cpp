@@ -1,17 +1,181 @@
+#ifdef DEBUG
 #include <iostream>
+#endif
 
 #include <array>
 #include <cstdint>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "chasm.hpp"
 #include "util/fsm.hpp"
 
+namespace chasm {
+  static constexpr uint16_t ARG_REGISTER = 0b0001;
+  static constexpr uint16_t ARG_BYTE = 0b0010;
+  static constexpr uint16_t ARG_ADDR = 0b0100;
+  static constexpr uint16_t ARG_DATA = 0b1000;
 
-std::vector<std::string> chasm::scan(const std::string &s, error_t *error) {
-  *error = error_t::success;
+  static constexpr uint16_t ARG_0 = 0x0000;
+  static constexpr uint16_t ARG_R = 0x0001 | (ARG_REGISTER << 4);
+  static constexpr uint16_t ARG_RR = 0x0002 | (ARG_REGISTER << 4) | (ARG_REGISTER << 8);
+  static constexpr uint16_t ARG_RB = 0x0002 | (ARG_REGISTER << 4) | (ARG_BYTE << 8);
+  static constexpr uint16_t ARG_RRB = 0x0003 | (ARG_REGISTER << 4) | (ARG_REGISTER << 8) | (ARG_BYTE << 12);
+  static constexpr uint16_t ARG_A = 0x0001 | (ARG_ADDR << 4);
+  static constexpr uint16_t ARG_D = 0x0001 | (ARG_DATA << 4);
+
+  static const fsm::table_t opcode_table = fsm::make_table({
+    "clear", "ret", "jmp", "call", "seq", "sne", "seqr", "mov", "add", "movr",
+    "or", "and", "xor", "addr", "sub", "slr", "rsub", "sll", "sner", "movi",
+    "jmpv", "rand", "draw", "keq", "kne", "std", "key", "ldd", "lds", "addi",
+    "sprite", "bcd", "str", "ldr", "nop", "halt"
+  });
+
+  static const fsm::table_t register_table = fsm::make_table({
+    "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7",
+    "V8", "V9", "VA", "VB", "VC", "VD", "VE", "VF",
+    "&0", "&1", "&2", "&3", "&4", "&5", "&6", "&7", "&8", "&9",
+    "&A", "&B", "&C", "&D", "&E", "&F",
+    "&a", "&b", "&c", "&d", "&e", "&f"
+  });
+
+  static const fsm::table_t hex_table = fsm::make_hex_table();
+
+  static const fsm::table_t label_table = []{
+    fsm::table_t table = {
+      {0, {{':', 1}}},
+      {1, {{'_', 1}, {' ', -1}}}
+    };
+
+    for (char c = 'a'; c <= 'z'; c++) {
+      table.at(1)[c] = 1;
+    }
+    for (char c = 'A'; c <= 'Z'; c++) {
+      table.at(1)[c] = 1;
+    }
+
+    return table;
+  }();
+
+  static const fsm::table_t data_table = {
+    {0, {{'$', 1}}},
+    {1, {{' ', -1}}}
+  };
+
+  enum class error_t {
+    success = 0,
+    invalid_token = 1,
+    null_string = 2,
+    bad_arg_count = 3,
+    bad_arg_type = 4
+  };
+
+  enum class token_type {
+    OPCODE, REGISTER, INT_LITERAL, LABEL, DATA, UNKNOWN
+  };
+
+  enum class token_value {
+    CLEAR, RET, JMP, CALL, SEQ, SNE, SEQR, MOV, ADD, MOVR, OR, AND, XOR, ADDR,
+    SUB, SLR, RSUB, SLL, SNER, MOVI, JMPV, RAND, DRAW, KEQ, KNE, STD, KEY, LDD,
+    LDS, ADDI, SPRITE, BCD, STR, LDR, NOP, HALT,
+    V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF,
+    INT_LITERAL, LABEL, DATA, UNKNOWN
+  };
+};
+
+chasm::assembler::assembler() {
+  current_address = entry_point;
+  labels = {};
+}
+
+std::vector<uint8_t> chasm::assembler::operator()(
+  const std::vector<std::string> &lines
+) {
+  std::vector<uint8_t> program;
+  int line_number = 0;
+  int line_error = 0;
+
+  // validate program file
+  for (const std::string &line : lines) {
+    if (line == "") {
+      continue;
+    }
+
+    error_t error = error_t::success;
+    std::vector<std::string> split_line = scan(line, error);
+    #ifdef DEBUG
+    for (const std::string &s : split_line) {
+      std::cout << s << " ";
+    }
+    std::cout << "\n";
+    #endif
+    line_number++;
+    if (error != error_t::success) {
+      char buf[512];
+      snprintf(
+        buf, 512, "Invalid Program!\nError on line %d.\n>>%s\n",
+        line_number, line.c_str()
+      );
+      throw std::invalid_argument(buf);
+    }
+
+    std::vector<token_t> tokens = eval(split_line, error);
+    #ifdef DEBUG
+    for (auto &t : tokens) {
+      std::cout << t << " ";
+    }
+    std::cout << "\n\n";
+    #endif
+    if (error != error_t::success) {
+      char buf[512];
+      snprintf(
+        buf, 512, "Invalid Command!\nError on line %d.\n>>%s\n",
+        line_number, line.c_str()
+      );
+      throw std::invalid_argument(buf);
+    }
+
+    tokenised.push_back(tokens);
+  }
+
+  // build label lookup
+  current_address = entry_point;
+  for (const std::vector<token_t> &tokens : tokenised) {
+    if (tokens[0].type == token_type::LABEL) {
+      labels[tokens[0].sval] = current_address;
+    } else {
+      current_address += 2;
+    }
+  }
+
+  // assemble
+  current_address = entry_point;
+  for (std::vector<token_t> &tokens : tokenised) {
+    if (tokens[0].type == token_type::LABEL) {
+      continue;
+    }
+
+    uint16_t binary = 0;
+
+    if (tokens[1].type == token_type::LABEL) {
+      tokens[1].ival = labels.at(tokens[1].sval);
+    }
+
+    binary = tokens_to_binary(tokens);
+    program.push_back(binary >> 8);
+    program.push_back(binary & 0x00ff);
+    current_address += 2;
+  }
+
+  return program;
+}
+
+std::vector<std::string> chasm::assembler::scan(
+  const std::string &s, error_t &error
+) {
+  error = error_t::success;
   std::vector<std::string> words;
   std::string word;
   std::istringstream iss(s);
@@ -19,69 +183,45 @@ std::vector<std::string> chasm::scan(const std::string &s, error_t *error) {
   fsm::error_t status;
   while (iss >> word) {
     // check for opcode
-    status = fsm::error_t::success;
-    fsm::machine opcode_machine{word, opcode_table};
-    while (!opcode_machine.end) {
-      status = fsm::next_state(opcode_machine);
-      if (status != fsm::error_t::success) {
-        opcode_machine.end = true;
-      }
-    }
-
-    if (status == fsm::error_t::success) {
-      words.push_back(word);
-      continue;
-    }
+    status = fsm::check(word, opcode_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
     // check for register
-    status = fsm::error_t::success;
-    fsm::machine register_machine{word, register_table};
-    while (!register_machine.end) {
-      status = fsm::next_state(register_machine);
-      if (status != fsm::error_t::success) {
-        register_machine.end = true;
-      }
-    }
-
-    if (status == fsm::error_t::success) {
-      words.push_back(word);
-      continue;
-    }
+    status = fsm::check(word, register_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
     // check for hex numbers
-    status = fsm::error_t::success;
-    fsm::machine hex_machine{word, hex_table};
-    while (!hex_machine.end) {
-      status = fsm::next_state(hex_machine);
-      if (status != fsm::error_t::success) {
-        hex_machine.end = true;
-      }
-    }
+    status = fsm::check(word, hex_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
-    if (status == fsm::error_t::success) {
-      words.push_back(word);
-      continue;
-    }
+    // check for labels
+    status = fsm::check(word, label_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
+
+    // check for data
+    status = fsm::check(word, data_table);
+    if (status == fsm::error_t::success) { words.push_back(word); continue; }
 
     words.push_back(">" + word + "<");
-    *error = error_t::invalid_token;
+    error = error_t::invalid_token;
   }
 
   return words;
 }
 
-std::vector<chasm::token_t> chasm::eval(
-  const std::vector<std::string> &s, error_t *error
+std::vector<chasm::token_t> chasm::assembler::eval(
+  const std::vector<std::string> &s, error_t &error
 ) {
-  *error = error_t::success;
+  error = error_t::success;
   std::vector<token_t> tokens;
 
   if (s.size() == 0) {
-    *error = error_t::null_string;
+    error = error_t::null_string;
     return {};
   }
 
   token_t token = str_to_token(s.at(0));
+
   tokens.push_back(token);
 
   uint16_t ival = token.ival;
@@ -89,7 +229,7 @@ std::vector<chasm::token_t> chasm::eval(
   ival >>= 4;
 
   if ((s.size() - 1) != num_args) {
-    *error = error_t::bad_arg_count;
+    error = error_t::bad_arg_count;
     return {};
   }
 
@@ -97,12 +237,18 @@ std::vector<chasm::token_t> chasm::eval(
     uint16_t arg_type = ival & 0xf;
     token_t arg = str_to_token(s.at(i));
 
-    if (
-      (arg.type == token_type::OPCODE) ||
-      ((arg.type == token_type::REGISTER) && (arg_type != ARG_REG)) ||
-      ((arg.type == token_type::INT_LITERAL) && ((arg_type != ARG_VAL) && (arg_type != ARG_ADR)))
-    ) {
-      *error = error_t::bad_arg_type;
+    static const bool is_opcode = arg.type == token_type::OPCODE;
+    static const bool bad_register =
+      (arg.type == token_type::REGISTER) &&
+      (arg_type != ARG_REGISTER);
+    static const bool bad_int =
+      (arg.type == token_type::INT_LITERAL) &&
+      !(
+        (arg_type == ARG_BYTE) || (arg_type == ARG_ADDR) || (arg_type == ARG_DATA)
+      );
+
+    if (is_opcode || bad_register || bad_int) {
+      error = error_t::bad_arg_type;
       return {};
     }
 
@@ -117,13 +263,13 @@ std::vector<chasm::token_t> chasm::eval(
 chasm::token_t chasm::str_to_token(const std::string &s) {
   if (s == "clear") { return {token_type::OPCODE, token_value::CLEAR}; };
   if (s == "ret") { return {token_type::OPCODE, token_value::RET}; };
-  if (s == "jmp") { return {token_type::OPCODE, token_value::JMP, ARG_ADDR}; };
-  if (s == "call") { return {token_type::OPCODE, token_value::CALL, ARG_ADDR}; };
-  if (s == "seq") { return {token_type::OPCODE, token_value::SEQ, ARG_RV}; };
-  if (s == "sne") { return {token_type::OPCODE, token_value::SNE, ARG_RV}; };
+  if (s == "jmp") { return {token_type::OPCODE, token_value::JMP, ARG_A}; };
+  if (s == "call") { return {token_type::OPCODE, token_value::CALL, ARG_A}; };
+  if (s == "seq") { return {token_type::OPCODE, token_value::SEQ, ARG_RB}; };
+  if (s == "sne") { return {token_type::OPCODE, token_value::SNE, ARG_RB}; };
   if (s == "seqr") { return {token_type::OPCODE, token_value::SEQR, ARG_RR}; };
-  if (s == "mov") { return {token_type::OPCODE, token_value::MOV, ARG_RV}; };
-  if (s == "add") { return {token_type::OPCODE, token_value::ADD, ARG_RV}; };
+  if (s == "mov") { return {token_type::OPCODE, token_value::MOV, ARG_RB}; };
+  if (s == "add") { return {token_type::OPCODE, token_value::ADD, ARG_RB}; };
   if (s == "movr") { return {token_type::OPCODE, token_value::MOVR, ARG_RR}; };
   if (s == "or") { return {token_type::OPCODE, token_value::OR, ARG_RR}; };
   if (s == "and") { return {token_type::OPCODE, token_value::AND, ARG_RR}; };
@@ -134,10 +280,10 @@ chasm::token_t chasm::str_to_token(const std::string &s) {
   if (s == "rsub") { return {token_type::OPCODE, token_value::RSUB, ARG_RR}; };
   if (s == "sll") { return {token_type::OPCODE, token_value::SLL, ARG_RR}; };
   if (s == "sner") { return {token_type::OPCODE, token_value::SNER, ARG_RR}; };
-  if (s == "movi") { return {token_type::OPCODE, token_value::MOVI, ARG_ADDR}; };
-  if (s == "jmpv") { return {token_type::OPCODE, token_value::JMPV, ARG_ADDR}; };
-  if (s == "rand") { return {token_type::OPCODE, token_value::RAND, ARG_RV}; };
-  if (s == "draw") { return {token_type::OPCODE, token_value::DRAW, ARG_RRV}; };
+  if (s == "movi") { return {token_type::OPCODE, token_value::MOVI, ARG_A}; };
+  if (s == "jmpv") { return {token_type::OPCODE, token_value::JMPV, ARG_A}; };
+  if (s == "rand") { return {token_type::OPCODE, token_value::RAND, ARG_RB}; };
+  if (s == "draw") { return {token_type::OPCODE, token_value::DRAW, ARG_RRB}; };
   if (s == "keq") { return {token_type::OPCODE, token_value::KEQ, ARG_R}; };
   if (s == "kne") { return {token_type::OPCODE, token_value::KNE, ARG_R}; };
   if (s == "std") { return {token_type::OPCODE, token_value::STD, ARG_R}; };
@@ -169,42 +315,31 @@ chasm::token_t chasm::str_to_token(const std::string &s) {
   if (s == "VF") { return {token_type::REGISTER, token_value::VF, 0xF}; };
 
   fsm::error_t status = fsm::error_t::success;
-  fsm::machine hex_machine{s, hex_table};
-  while (!hex_machine.end) {
-    status = fsm::next_state(hex_machine);
-    if (status != fsm::error_t::success) {
-      hex_machine.end = true;
-    }
-  }
 
+  status = fsm::check(s, hex_table);
   if (status == fsm::error_t::success) {
     uint16_t n = std::stoi(s, nullptr, 16) & 0xffff;
     return {token_type::INT_LITERAL, token_value::INT_LITERAL, n};
   }
 
+  status = fsm::check(s, label_table);
+  if (status == fsm::error_t::success) {
+    return {token_type::LABEL, token_value::LABEL, 0, s};
+  }
+
+  status = fsm::check(s, data_table);
+  if (status == fsm::error_t::success) {
+    return {token_type::DATA, token_value::DATA, ARG_D};
+  }
 
   return {token_type::UNKNOWN, token_value::UNKNOWN};
 }
 
-uint16_t to_a(const uint16_t x) {
-  return (x & 0x0fff);
-}
-
-uint16_t to_x(const uint16_t x) {
-  return (x & 0x000f) << 8;
-}
-
-uint16_t to_y(const uint16_t x) {
-  return (x & 0x000f) << 4;
-}
-uint16_t to_n(const uint16_t x) {
-  return (x & 0x000f);
-}
-
-uint16_t to_v(const uint16_t x) {
-  return (x & 0x00ff);
-}
-
+static constexpr uint16_t to_a(const uint16_t x) { return (x & 0x0fff); }
+static constexpr uint16_t to_x(const uint16_t x) { return (x & 0x000f) << 8; }
+static constexpr uint16_t to_y(const uint16_t x) { return (x & 0x000f) << 4; }
+static constexpr uint16_t to_n(const uint16_t x) { return (x & 0x000f); }
+static constexpr uint16_t to_b(const uint16_t x) { return (x & 0x00ff);}
 
 uint16_t chasm::tokens_to_binary(const std::vector<token_t> &t) {
   uint16_t b = 0;
@@ -214,11 +349,11 @@ uint16_t chasm::tokens_to_binary(const std::vector<token_t> &t) {
     case token_value::RET:    b = 0x00ee; break;
     case token_value::JMP:    b = 0x1000 | to_a(t.at(1).ival); break;
     case token_value::CALL:   b = 0x2000 | to_a(t.at(1).ival); break;
-    case token_value::SEQ:    b = 0x3000 | to_x(t.at(1).ival) | to_v(t.at(2).ival); break;
-    case token_value::SNE:    b = 0x4000 | to_x(t.at(1).ival) | to_v(t.at(2).ival); break;
+    case token_value::SEQ:    b = 0x3000 | to_x(t.at(1).ival) | to_b(t.at(2).ival); break;
+    case token_value::SNE:    b = 0x4000 | to_x(t.at(1).ival) | to_b(t.at(2).ival); break;
     case token_value::SEQR:   b = 0x5000 | to_x(t.at(1).ival) | to_y(t.at(2).ival); break;
-    case token_value::MOV:    b = 0x6000 | to_x(t.at(1).ival) | to_v(t.at(2).ival); break;
-    case token_value::ADD:    b = 0x7000 | to_x(t.at(1).ival) | to_v(t.at(2).ival); break;
+    case token_value::MOV:    b = 0x6000 | to_x(t.at(1).ival) | to_b(t.at(2).ival); break;
+    case token_value::ADD:    b = 0x7000 | to_x(t.at(1).ival) | to_b(t.at(2).ival); break;
     case token_value::MOVR:   b = 0x8000 | to_x(t.at(1).ival) | to_y(t.at(2).ival); break;
     case token_value::OR:     b = 0x8001 | to_x(t.at(1).ival) | to_y(t.at(2).ival); break;
     case token_value::AND:    b = 0x8002 | to_x(t.at(1).ival) | to_y(t.at(2).ival); break;
@@ -231,7 +366,7 @@ uint16_t chasm::tokens_to_binary(const std::vector<token_t> &t) {
     case token_value::SNER:   b = 0x9000 | to_x(t.at(1).ival) | to_y(t.at(2).ival); break;
     case token_value::MOVI:   b = 0xa000 | to_a(t.at(1).ival); break;
     case token_value::JMPV:   b = 0xb000 | to_a(t.at(1).ival); break;
-    case token_value::RAND:   b = 0xc000 | to_x(t.at(1).ival) | to_v(t.at(2).ival); break;
+    case token_value::RAND:   b = 0xc000 | to_x(t.at(1).ival) | to_b(t.at(2).ival); break;
     case token_value::DRAW:   b = 0xd000 | to_x(t.at(1).ival) | to_y(t.at(2).ival) | to_n(t.at(3).ival); break;
     case token_value::KEQ:    b = 0xe09e | to_x(t.at(1).ival); break;
     case token_value::KNE:    b = 0xe0a1 | to_x(t.at(1).ival); break;
@@ -245,6 +380,7 @@ uint16_t chasm::tokens_to_binary(const std::vector<token_t> &t) {
     case token_value::STR:    b = 0xf055 | to_x(t.at(1).ival); break;
     case token_value::LDR:    b = 0xf065 | to_x(t.at(1).ival); break;
     case token_value::HALT:   b = 0xffff; break;
+    case token_value::DATA:   b = t.at(1).ival; break;
     case token_value::NOP:
     default: b = 0x0000;
   }
@@ -309,6 +445,8 @@ std::ostream &operator<<(std::ostream &os, const chasm::token_t &t) {
     case chasm::token_value::VE: os << "VE"; break;
     case chasm::token_value::VF: os << "VF"; break;
     case chasm::token_value::INT_LITERAL: os << "INT_LITERAL(" << t.ival << ")"; break;
+    case chasm::token_value::LABEL: os << "LABEL(" << t.sval << ")"; break;
+    case chasm::token_value::DATA: os << "DATA" << t.sval << ""; break;
     default: os << "UNKNOWN"; break;
   }
 
