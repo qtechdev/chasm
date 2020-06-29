@@ -103,16 +103,17 @@ std::vector<uint8_t> qch_asm::assembler::operator()(
     if (line == "") {
       continue;
     }
+    line_number++;
 
     error_t error = error_t::success;
     std::vector<std::string> split_line = scan(line, error);
+
     #ifdef DEBUG
-    for (const std::string &s : split_line) {
-      std::cout << s << " ";
-    }
+    std::cout << "Line " << line_number << ": ";
+    for (const std::string &s : split_line) { std::cout << s << " "; }
     std::cout << "\n";
     #endif
-    line_number++;
+
     if (error != error_t::success) {
       char buf[512];
       snprintf(
@@ -123,12 +124,13 @@ std::vector<uint8_t> qch_asm::assembler::operator()(
     }
 
     std::vector<token_t> tokens = eval(split_line, error);
+
     #ifdef DEBUG
-    for (auto &t : tokens) {
-      std::cout << t << " ";
-    }
+    std::cout << "-> ";
+    for (auto &t : tokens) { std::cout << t << " "; }
     std::cout << "\n\n";
     #endif
+
     if (error != error_t::success) {
       char buf[512];
       snprintf(
