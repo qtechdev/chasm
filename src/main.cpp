@@ -13,10 +13,10 @@
 #include <qxdg/qxdg.hpp>
 #include <qfio/qfio.hpp>
 
-#include "chasm.hpp"
+#include "qch_asm.hpp"
 #include "util/fsm.hpp"
 
-static const std::regex program_re(R"re((.*)(\.chasm)$)re");
+static const std::regex program_re(R"re((.*)(\.qch_asm)$)re");
 
 std::vector<std::string> read_lines(const std::string &path) {
   std::vector<std::string> lines;
@@ -56,7 +56,7 @@ int main(int argc, const char *argv[]) {
   );
   std::vector<std::string> lines = read_lines(program_path);
 
-  chasm::assembler ch;
+  qch_asm::assembler ch;
   std::vector<uint8_t> program;
   try {
     program = ch(lines);

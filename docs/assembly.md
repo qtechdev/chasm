@@ -1,4 +1,4 @@
-# chasm assembly language
+# qChip assembly language
 
 ## instructions
 OpCodes are specified in the [opcode table](opcode_table.md).

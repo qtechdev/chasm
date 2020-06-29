@@ -6,7 +6,7 @@ CXX=g++
 LD_FLAGS=-lqxdg -lqfio
 CXX_FLAGS=-std=c++17
 
-NAME=chasm
+NAME=qch_asm
 BINARY=out/${NAME}
 
 ifdef DEBUG

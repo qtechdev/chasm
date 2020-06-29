@@ -1,5 +1,5 @@
-#ifndef __CHASM_HPP__
-#define __CHASM_HPP__
+#ifndef __QCH_ASM_HPP__
+#define __QCH_ASM_HPP__
 
 #include <cstdint>
 #include <string>
@@ -10,7 +10,7 @@
 
 #include "util/fsm.hpp"
 
-namespace chasm {
+namespace qch_asm {
   enum class error_t;
 
   enum class token_type;
@@ -36,15 +36,16 @@ namespace chasm {
     static constexpr uint16_t entry_point = 0x200;
     uint16_t current_address;
     std::map<std::string, int> labels;
-    std::vector<std::vector<chasm::token_t>> tokenised;
+    std::vector<std::vector<qch_asm::token_t>> tokenised;
   };
 
   token_t str_to_token(const std::string &s);
   uint16_t tokens_to_binary(const std::vector<token_t> &t);
 }
 
+
 #ifdef DEBUG
-std::ostream &operator<<(std::ostream &os, const chasm::token_t &t);
+std::ostream &operator<<(std::ostream &os, const qch_asm::token_t &t);
 #endif
 
-#endif // __CHASM_HPP__
+#endif // __QCH_ASM_HPP__
