@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=chasm
-GenericName=Chip-8 Assember
-Exec=chasm
-Icon=chasm
+Name=qch_asm
+GenericName=qChip Assember
+Exec=qch_asm
+Icon=qch_asm
 Categories=Utility
 Terminal=true

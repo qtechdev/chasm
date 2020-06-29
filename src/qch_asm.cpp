@@ -9,10 +9,10 @@
 #include <string>
 #include <vector>
 
-#include "chasm.hpp"
+#include "qch_asm.hpp"
 #include "util/fsm.hpp"
 
-namespace chasm {
+namespace qch_asm {
   static constexpr uint16_t ARG_REGISTER = 0b0001;
   static constexpr uint16_t ARG_BYTE = 0b0010;
   static constexpr uint16_t ARG_ADDR = 0b0100;
@@ -83,14 +83,14 @@ namespace chasm {
     V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF,
     INT_LITERAL, LABEL, DATA, UNKNOWN
   };
-};
+}
 
-chasm::assembler::assembler() {
+qch_asm::assembler::assembler() {
   current_address = entry_point;
   labels = {};
 }
 
-std::vector<uint8_t> chasm::assembler::operator()(
+std::vector<uint8_t> qch_asm::assembler::operator()(
   const std::vector<std::string> &lines
 ) {
   std::vector<uint8_t> program;
@@ -172,7 +172,7 @@ std::vector<uint8_t> chasm::assembler::operator()(
   return program;
 }
 
-std::vector<std::string> chasm::assembler::scan(
+std::vector<std::string> qch_asm::assembler::scan(
   const std::string &s, error_t &error
 ) {
   error = error_t::success;
@@ -209,7 +209,7 @@ std::vector<std::string> chasm::assembler::scan(
   return words;
 }
 
-std::vector<chasm::token_t> chasm::assembler::eval(
+std::vector<qch_asm::token_t> qch_asm::assembler::eval(
   const std::vector<std::string> &s, error_t &error
 ) {
   error = error_t::success;
@@ -260,7 +260,7 @@ std::vector<chasm::token_t> chasm::assembler::eval(
   return tokens;
 }
 
-chasm::token_t chasm::str_to_token(const std::string &s) {
+qch_asm::token_t qch_asm::str_to_token(const std::string &s) {
   if (s == "clear") { return {token_type::OPCODE, token_value::CLEAR}; };
   if (s == "ret") { return {token_type::OPCODE, token_value::RET}; };
   if (s == "jmp") { return {token_type::OPCODE, token_value::JMP, ARG_A}; };
@@ -341,7 +341,7 @@ static constexpr uint16_t to_y(const uint16_t x) { return (x & 0x000f) << 4; }
 static constexpr uint16_t to_n(const uint16_t x) { return (x & 0x000f); }
 static constexpr uint16_t to_b(const uint16_t x) { return (x & 0x00ff);}
 
-uint16_t chasm::tokens_to_binary(const std::vector<token_t> &t) {
+uint16_t qch_asm::tokens_to_binary(const std::vector<token_t> &t) {
   uint16_t b = 0;
 
   switch (t.at(0).value) {
@@ -390,63 +390,63 @@ uint16_t chasm::tokens_to_binary(const std::vector<token_t> &t) {
 
 
 #ifdef DEBUG
-std::ostream &operator<<(std::ostream &os, const chasm::token_t &t) {
+std::ostream &operator<<(std::ostream &os, const qch_asm::token_t &t) {
   switch (t.value) {
-    case chasm::token_value::CLEAR: os << "CLEAR"; break;
-    case chasm::token_value::RET: os << "RET"; break;
-    case chasm::token_value::JMP: os << "JMP"; break;
-    case chasm::token_value::CALL: os << "CALL"; break;
-    case chasm::token_value::SEQ: os << "SEQ"; break;
-    case chasm::token_value::SNE: os << "SNE"; break;
-    case chasm::token_value::SEQR: os << "SEQR"; break;
-    case chasm::token_value::MOV: os << "MOV"; break;
-    case chasm::token_value::ADD: os << "ADD"; break;
-    case chasm::token_value::MOVR: os << "MOVR"; break;
-    case chasm::token_value::OR: os << "OR"; break;
-    case chasm::token_value::AND: os << "AND"; break;
-    case chasm::token_value::XOR: os << "XOR"; break;
-    case chasm::token_value::ADDR: os << "ADDR"; break;
-    case chasm::token_value::SUB: os << "SUB"; break;
-    case chasm::token_value::SLR: os << "SLR"; break;
-    case chasm::token_value::RSUB: os << "RSUB"; break;
-    case chasm::token_value::SLL: os << "SLL"; break;
-    case chasm::token_value::SNER: os << "SNER"; break;
-    case chasm::token_value::MOVI: os << "MOVI"; break;
-    case chasm::token_value::JMPV: os << "JMPV"; break;
-    case chasm::token_value::RAND: os << "RAND"; break;
-    case chasm::token_value::DRAW: os << "DRAW"; break;
-    case chasm::token_value::KEQ: os << "KEQ"; break;
-    case chasm::token_value::KNE: os << "KNE"; break;
-    case chasm::token_value::STD: os << "STD"; break;
-    case chasm::token_value::KEY: os << "KEY"; break;
-    case chasm::token_value::LDD: os << "LDD"; break;
-    case chasm::token_value::LDS: os << "LDS"; break;
-    case chasm::token_value::ADDI: os << "ADDI"; break;
-    case chasm::token_value::SPRITE: os << "SPRITE"; break;
-    case chasm::token_value::BCD: os << "BCD"; break;
-    case chasm::token_value::STR: os << "STR"; break;
-    case chasm::token_value::LDR: os << "LDR"; break;
-    case chasm::token_value::NOP: os << "NOP"; break;
-    case chasm::token_value::HALT: os << "HALT"; break;
-    case chasm::token_value::V0: os << "V0"; break;
-    case chasm::token_value::V1: os << "V1"; break;
-    case chasm::token_value::V2: os << "V2"; break;
-    case chasm::token_value::V3: os << "V3"; break;
-    case chasm::token_value::V4: os << "V4"; break;
-    case chasm::token_value::V5: os << "V5"; break;
-    case chasm::token_value::V6: os << "V6"; break;
-    case chasm::token_value::V7: os << "V7"; break;
-    case chasm::token_value::V8: os << "V8"; break;
-    case chasm::token_value::V9: os << "V9"; break;
-    case chasm::token_value::VA: os << "VA"; break;
-    case chasm::token_value::VB: os << "VB"; break;
-    case chasm::token_value::VC: os << "VC"; break;
-    case chasm::token_value::VD: os << "VD"; break;
-    case chasm::token_value::VE: os << "VE"; break;
-    case chasm::token_value::VF: os << "VF"; break;
-    case chasm::token_value::INT_LITERAL: os << "INT_LITERAL(" << t.ival << ")"; break;
-    case chasm::token_value::LABEL: os << "LABEL(" << t.sval << ")"; break;
-    case chasm::token_value::DATA: os << "DATA" << t.sval << ""; break;
+    case qch_asm::token_value::CLEAR: os << "CLEAR"; break;
+    case qch_asm::token_value::RET: os << "RET"; break;
+    case qch_asm::token_value::JMP: os << "JMP"; break;
+    case qch_asm::token_value::CALL: os << "CALL"; break;
+    case qch_asm::token_value::SEQ: os << "SEQ"; break;
+    case qch_asm::token_value::SNE: os << "SNE"; break;
+    case qch_asm::token_value::SEQR: os << "SEQR"; break;
+    case qch_asm::token_value::MOV: os << "MOV"; break;
+    case qch_asm::token_value::ADD: os << "ADD"; break;
+    case qch_asm::token_value::MOVR: os << "MOVR"; break;
+    case qch_asm::token_value::OR: os << "OR"; break;
+    case qch_asm::token_value::AND: os << "AND"; break;
+    case qch_asm::token_value::XOR: os << "XOR"; break;
+    case qch_asm::token_value::ADDR: os << "ADDR"; break;
+    case qch_asm::token_value::SUB: os << "SUB"; break;
+    case qch_asm::token_value::SLR: os << "SLR"; break;
+    case qch_asm::token_value::RSUB: os << "RSUB"; break;
+    case qch_asm::token_value::SLL: os << "SLL"; break;
+    case qch_asm::token_value::SNER: os << "SNER"; break;
+    case qch_asm::token_value::MOVI: os << "MOVI"; break;
+    case qch_asm::token_value::JMPV: os << "JMPV"; break;
+    case qch_asm::token_value::RAND: os << "RAND"; break;
+    case qch_asm::token_value::DRAW: os << "DRAW"; break;
+    case qch_asm::token_value::KEQ: os << "KEQ"; break;
+    case qch_asm::token_value::KNE: os << "KNE"; break;
+    case qch_asm::token_value::STD: os << "STD"; break;
+    case qch_asm::token_value::KEY: os << "KEY"; break;
+    case qch_asm::token_value::LDD: os << "LDD"; break;
+    case qch_asm::token_value::LDS: os << "LDS"; break;
+    case qch_asm::token_value::ADDI: os << "ADDI"; break;
+    case qch_asm::token_value::SPRITE: os << "SPRITE"; break;
+    case qch_asm::token_value::BCD: os << "BCD"; break;
+    case qch_asm::token_value::STR: os << "STR"; break;
+    case qch_asm::token_value::LDR: os << "LDR"; break;
+    case qch_asm::token_value::NOP: os << "NOP"; break;
+    case qch_asm::token_value::HALT: os << "HALT"; break;
+    case qch_asm::token_value::V0: os << "V0"; break;
+    case qch_asm::token_value::V1: os << "V1"; break;
+    case qch_asm::token_value::V2: os << "V2"; break;
+    case qch_asm::token_value::V3: os << "V3"; break;
+    case qch_asm::token_value::V4: os << "V4"; break;
+    case qch_asm::token_value::V5: os << "V5"; break;
+    case qch_asm::token_value::V6: os << "V6"; break;
+    case qch_asm::token_value::V7: os << "V7"; break;
+    case qch_asm::token_value::V8: os << "V8"; break;
+    case qch_asm::token_value::V9: os << "V9"; break;
+    case qch_asm::token_value::VA: os << "VA"; break;
+    case qch_asm::token_value::VB: os << "VB"; break;
+    case qch_asm::token_value::VC: os << "VC"; break;
+    case qch_asm::token_value::VD: os << "VD"; break;
+    case qch_asm::token_value::VE: os << "VE"; break;
+    case qch_asm::token_value::VF: os << "VF"; break;
+    case qch_asm::token_value::INT_LITERAL: os << "INT_LITERAL(" << t.ival << ")"; break;
+    case qch_asm::token_value::LABEL: os << "LABEL(" << t.sval << ")"; break;
+    case qch_asm::token_value::DATA: os << "DATA" << t.sval << ""; break;
     default: os << "UNKNOWN"; break;
   }
 

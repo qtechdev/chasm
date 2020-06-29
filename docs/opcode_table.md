@@ -1,7 +1,6 @@
 # opcode table
 opcode  | mnemonic          | info
 --------|-------------------|-----
-0000    | nop               | \*chasm only
 00e0    | clear             | clears the display
 00ee    | ret
 1nnn    | jmp [a]
@@ -36,8 +35,12 @@ fx29    | sprite [r]        | store location of sprite `Vr` to `I`
 fx33    | bcd [r]           | store bcd of `Vr` starting at memory location `I`
 fx55    | str [r]           | store registers up to `Vr` at memory location `I`
 fx65    | ldr [r]           | load registers up to `Vr` from memory location `I`
-ffff    | halt              | \*chasm only
 
+## qChip specific opcode table
+opcode  | mnemonic          | info
+--------|-------------------|-----
+0000    | nop
+ffff    | halt
 
 # arguments
 Four types of values can be used as arguments.

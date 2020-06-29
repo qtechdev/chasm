@@ -1,8 +1,7 @@
-# chasm
+# qch_asm
+Converts qChip assembly to chip8 instructions.
 
-A chip8 assembler.
-
-- assembles chip8 assembly as found in [instructions.md](docs/instructions.md)
+- see [assembly.md](docs/assembly.md) for spec
 - can handle labels used by jump instructions
 - calculate label offsets with a fist pass (allows use before definition)
 - add a way to specify data in assembly file
