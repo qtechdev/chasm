@@ -26,14 +26,14 @@ namespace qch_asm {
   static constexpr uint16_t ARG_A = 0x0001 | (ARG_ADDR << 4);
   static constexpr uint16_t ARG_D = 0x0001 | (ARG_DATA << 4);
 
-  static const fsm::table_t opcode_table = fsm::make_table({
+  static const fsm::fsm_table opcode_table = fsm::make_table({
     "clear", "ret", "jmp", "call", "seq", "sne", "seqr", "mov", "add", "movr",
     "or", "and", "xor", "addr", "sub", "slr", "rsub", "sll", "sner", "movi",
     "jmpv", "rand", "draw", "keq", "kne", "std", "key", "ldd", "lds", "addi",
     "sprite", "bcd", "str", "ldr", "nop", "halt"
   });
 
-  static const fsm::table_t register_table = fsm::make_table({
+  static const fsm::fsm_table register_table = fsm::make_table({
     "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7",
     "V8", "V9", "VA", "VB", "VC", "VD", "VE", "VF",
     "&0", "&1", "&2", "&3", "&4", "&5", "&6", "&7", "&8", "&9",
@@ -41,10 +41,10 @@ namespace qch_asm {
     "&a", "&b", "&c", "&d", "&e", "&f"
   });
 
-  static const fsm::table_t hex_table = fsm::make_hex_table();
+  static const fsm::fsm_table hex_table = fsm::make_hex_table();
 
-  static const fsm::table_t label_table = []{
-    fsm::table_t table = {
+  static const fsm::fsm_table label_table = []{
+    fsm::fsm_table table = {
       {0, {{':', 1}}},
       {1, {{'_', 1}, {' ', -1}}}
     };
@@ -59,7 +59,7 @@ namespace qch_asm {
     return table;
   }();
 
-  static const fsm::table_t data_table = {
+  static const fsm::fsm_table data_table = {
     {0, {{'$', 1}}},
     {1, {{' ', -1}}}
   };
@@ -180,27 +180,27 @@ std::vector<std::string> qch_asm::assembler::scan(
   std::string word;
   std::istringstream iss(s);
 
-  fsm::error_t status;
+  fsm::error_code status;
   while (iss >> word) {
     // check for opcode
     status = fsm::check(word, opcode_table);
-    if (status == fsm::error_t::success) { words.push_back(word); continue; }
+    if (status == fsm::error_code::success) { words.push_back(word); continue; }
 
     // check for register
     status = fsm::check(word, register_table);
-    if (status == fsm::error_t::success) { words.push_back(word); continue; }
+    if (status == fsm::error_code::success) { words.push_back(word); continue; }
 
     // check for hex numbers
     status = fsm::check(word, hex_table);
-    if (status == fsm::error_t::success) { words.push_back(word); continue; }
+    if (status == fsm::error_code::success) { words.push_back(word); continue; }
 
     // check for labels
     status = fsm::check(word, label_table);
-    if (status == fsm::error_t::success) { words.push_back(word); continue; }
+    if (status == fsm::error_code::success) { words.push_back(word); continue; }
 
     // check for data
     status = fsm::check(word, data_table);
-    if (status == fsm::error_t::success) { words.push_back(word); continue; }
+    if (status == fsm::error_code::success) { words.push_back(word); continue; }
 
     words.push_back(">" + word + "<");
     error = error_t::invalid_token;
@@ -314,21 +314,21 @@ qch_asm::token_t qch_asm::str_to_token(const std::string &s) {
   if (s == "VE") { return {token_type::REGISTER, token_value::VE, 0xE}; };
   if (s == "VF") { return {token_type::REGISTER, token_value::VF, 0xF}; };
 
-  fsm::error_t status = fsm::error_t::success;
+  fsm::error_code status = fsm::error_code::success;
 
   status = fsm::check(s, hex_table);
-  if (status == fsm::error_t::success) {
+  if (status == fsm::error_code::success) {
     uint16_t n = std::stoi(s, nullptr, 16) & 0xffff;
     return {token_type::INT_LITERAL, token_value::INT_LITERAL, n};
   }
 
   status = fsm::check(s, label_table);
-  if (status == fsm::error_t::success) {
+  if (status == fsm::error_code::success) {
     return {token_type::LABEL, token_value::LABEL, 0, s};
   }
 
   status = fsm::check(s, data_table);
-  if (status == fsm::error_t::success) {
+  if (status == fsm::error_code::success) {
     return {token_type::DATA, token_value::DATA, ARG_D};
   }
 

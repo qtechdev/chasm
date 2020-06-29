@@ -4,26 +4,26 @@
 
 #include "fsm.hpp"
 
-fsm::error_t fsm::next_state(machine &f) {
+fsm::error_code fsm::next_state(machine &f) {
   if (f.index == f.s.size()) {
     auto state_index = f.table.find(f.state);
     if (state_index == f.table.end()) {
-      return error_t::invalid_state;
+      return error_code::invalid_state;
     }
 
     auto char_index = f.table.at(f.state).find(' ');
     if (char_index == f.table.at(f.state).end()) {
-      return error_t::too_short;
+      return error_code::too_short;
     }
 
     f.end = true;
-    return error_t::success;
+    return error_code::success;
   }
 
   char c = f.s[f.index];
   auto char_index = f.table.at(f.state).find(c);
   if (char_index == f.table.at(f.state).end()) {
-    return error_t::invalid_string;
+    return error_code::invalid_string;
   }
 
   f.state = f.table.at(f.state).at(c);
@@ -32,16 +32,16 @@ fsm::error_t fsm::next_state(machine &f) {
     f.end = true;
   }
 
-  return error_t::success;
+  return error_code::success;
 };
 
-fsm::error_t fsm::check(const std::string &s, const table_t &t) {
-  error_t status = error_t::success;
+fsm::error_code fsm::check(const std::string &s, const fsm_table &t) {
+  error_code status = error_code::success;
 
   machine m{s, t};
   while (!m.end) {
     status = next_state(m);
-    if (status != error_t::success) {
+    if (status != error_code::success) {
       m.end = true;
     }
   }
@@ -50,8 +50,8 @@ fsm::error_t fsm::check(const std::string &s, const table_t &t) {
 }
 
 
-fsm::table_t fsm::make_int_table() {
-  table_t table = {
+fsm::fsm_table fsm::make_int_table() {
+  fsm_table table = {
     {0, {}},
     {1, {}}
   };
@@ -66,8 +66,8 @@ fsm::table_t fsm::make_int_table() {
   return table;
 }
 
-fsm::table_t fsm::make_hex_table() {
-  table_t table = {
+fsm::fsm_table fsm::make_hex_table() {
+  fsm_table table = {
     {0, {}},
     {1, {}},
     {2, {}}
@@ -90,8 +90,8 @@ fsm::table_t fsm::make_hex_table() {
   return table;
 }
 
-fsm::table_t fsm::make_char_table() {
-  table_t table = {
+fsm::fsm_table fsm::make_char_table() {
+  fsm_table table = {
     {0, {}},
     {1, {}}
   };
@@ -109,8 +109,8 @@ fsm::table_t fsm::make_char_table() {
   return table;
 }
 
-fsm::table_t fsm::make_table(const std::vector<std::string> &strings) {
-  table_t table;
+fsm::fsm_table fsm::make_table(const std::vector<std::string> &strings) {
+  fsm_table table;
   int next_unused_state = 1;
 
   for (const auto &s : strings) {
@@ -145,7 +145,7 @@ fsm::table_t fsm::make_table(const std::vector<std::string> &strings) {
   return table;
 }
 
-int fsm::get_max_index(const table_t &table) {
+int fsm::get_max_index(const fsm_table &table) {
   int max_index = 0;
   for (const auto &[k, v] : table) {
     if (k > max_index) {
@@ -156,7 +156,7 @@ int fsm::get_max_index(const table_t &table) {
   return max_index;
 }
 
-void fsm::add_digit_transition(table_t &table) {
+void fsm::add_digit_transition(fsm_table &table) {
   if (table.find(0) == table.end()) {
     table[0] = {};
   }
