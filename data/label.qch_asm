@@ -1,9 +1,9 @@
 clear
-mov V0 0x1
-mov V1 0x1
+mov &0 0x1
+mov &1 0x1
 :get_key
-key V2
+key &2
 clear
-sprite V2
-draw V0 V1 0x5
+sprite &2
+draw &0 &1 0x5
 jmp :get_key
