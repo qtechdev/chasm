@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include <qch_vm/spec.hpp>
+
 #include "qch_asm.hpp"
 #include "util/fsm.hpp"
 
@@ -25,21 +27,6 @@ namespace qch_asm {
   static constexpr uint16_t ARG_RRB = 0x0003 | (ARG_REGISTER << 4) | (ARG_REGISTER << 8) | (ARG_BYTE << 12);
   static constexpr uint16_t ARG_A = 0x0001 | (ARG_ADDR << 4);
   static constexpr uint16_t ARG_D = 0x0001 | (ARG_DATA << 4);
-
-  static const fsm::fsm_table opcode_table = fsm::make_table({
-    "clear", "ret", "jmp", "call", "seq", "sne", "seqr", "mov", "add", "movr",
-    "or", "and", "xor", "addr", "sub", "slr", "rsub", "sll", "sner", "movi",
-    "jmpv", "rand", "draw", "keq", "kne", "std", "key", "ldd", "lds", "addi",
-    "sprite", "bcd", "str", "ldr", "nop", "halt"
-  });
-
-  static const fsm::fsm_table register_table = fsm::make_table({
-    "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7",
-    "V8", "V9", "VA", "VB", "VC", "VD", "VE", "VF",
-    "&0", "&1", "&2", "&3", "&4", "&5", "&6", "&7", "&8", "&9",
-    "&A", "&B", "&C", "&D", "&E", "&F",
-    "&a", "&b", "&c", "&d", "&e", "&f"
-  });
 
   static const fsm::fsm_table hex_table = fsm::make_hex_table();
 
@@ -59,11 +46,6 @@ namespace qch_asm {
     return table;
   }();
 
-  static const fsm::fsm_table data_table = {
-    {0, {{'$', 1}}},
-    {1, {{' ', -1}}}
-  };
-
   enum class error_t {
     success = 0,
     invalid_token = 1,
@@ -80,9 +62,28 @@ namespace qch_asm {
     CLEAR, RET, JMP, CALL, SEQ, SNE, SEQR, MOV, ADD, MOVR, OR, AND, XOR, ADDR,
     SUB, SLR, RSUB, SLL, SNER, MOVI, JMPV, RAND, DRAW, KEQ, KNE, STD, KEY, LDD,
     LDS, ADDI, SPRITE, BCD, STR, LDR, NOP, HALT,
-    V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF,
-    INT_LITERAL, LABEL, DATA, UNKNOWN
+    REGISTER, INT_LITERAL, LABEL, DATA, UNKNOWN
   };
+}
+
+void qch_asm::build_tables() {
+  std::vector<std::string> names;
+  for (const auto &x : qch::isa) {
+    names.push_back(x.name.data());
+  }
+
+  opcode_table = fsm::make_table(names);
+
+  std::vector<std::string> registers;
+  for (int i = 0; i <= 0xf; ++i) {
+    char buf[3];
+    snprintf(buf, 3, "%s%x", qch::reg_token.data(), i);
+    registers.push_back(buf);
+  }
+
+  register_table = fsm::make_table(registers);
+
+  data_table = fsm::make_table({qch::data_token.data()});
 }
 
 qch_asm::assembler::assembler() {
@@ -297,24 +298,15 @@ qch_asm::token_t qch_asm::str_to_token(const std::string &s) {
   if (s == "ldr") { return {token_type::OPCODE, token_value::LDR, ARG_R}; };
   if (s == "nop") { return {token_type::OPCODE, token_value::NOP}; };
   if (s == "halt") { return {token_type::OPCODE, token_value::HALT}; };
-  if (s == "V0") { return {token_type::REGISTER, token_value::V0, 0x0}; };
-  if (s == "V1") { return {token_type::REGISTER, token_value::V1, 0x1}; };
-  if (s == "V2") { return {token_type::REGISTER, token_value::V2, 0x2}; };
-  if (s == "V3") { return {token_type::REGISTER, token_value::V3, 0x3}; };
-  if (s == "V4") { return {token_type::REGISTER, token_value::V4, 0x4}; };
-  if (s == "V5") { return {token_type::REGISTER, token_value::V5, 0x5}; };
-  if (s == "V6") { return {token_type::REGISTER, token_value::V6, 0x6}; };
-  if (s == "V7") { return {token_type::REGISTER, token_value::V7, 0x7}; };
-  if (s == "V8") { return {token_type::REGISTER, token_value::V8, 0x8}; };
-  if (s == "V9") { return {token_type::REGISTER, token_value::V9, 0x9}; };
-  if (s == "VA") { return {token_type::REGISTER, token_value::VA, 0xA}; };
-  if (s == "VB") { return {token_type::REGISTER, token_value::VB, 0xB}; };
-  if (s == "VC") { return {token_type::REGISTER, token_value::VC, 0xC}; };
-  if (s == "VD") { return {token_type::REGISTER, token_value::VD, 0xD}; };
-  if (s == "VE") { return {token_type::REGISTER, token_value::VE, 0xE}; };
-  if (s == "VF") { return {token_type::REGISTER, token_value::VF, 0xF}; };
 
   fsm::error_code status = fsm::error_code::success;
+
+  status = fsm::check(s, register_table);
+  if (status == fsm::error_code::success) {
+    std::string c = {s.at(1)};
+    uint8_t n = std::stoi(c, nullptr, 16) & 0xff;
+    return {token_type::REGISTER, token_value::REGISTER, n};
+  }
 
   status = fsm::check(s, hex_table);
   if (status == fsm::error_code::success) {
@@ -428,22 +420,7 @@ std::ostream &operator<<(std::ostream &os, const qch_asm::token_t &t) {
     case qch_asm::token_value::LDR: os << "LDR"; break;
     case qch_asm::token_value::NOP: os << "NOP"; break;
     case qch_asm::token_value::HALT: os << "HALT"; break;
-    case qch_asm::token_value::V0: os << "V0"; break;
-    case qch_asm::token_value::V1: os << "V1"; break;
-    case qch_asm::token_value::V2: os << "V2"; break;
-    case qch_asm::token_value::V3: os << "V3"; break;
-    case qch_asm::token_value::V4: os << "V4"; break;
-    case qch_asm::token_value::V5: os << "V5"; break;
-    case qch_asm::token_value::V6: os << "V6"; break;
-    case qch_asm::token_value::V7: os << "V7"; break;
-    case qch_asm::token_value::V8: os << "V8"; break;
-    case qch_asm::token_value::V9: os << "V9"; break;
-    case qch_asm::token_value::VA: os << "VA"; break;
-    case qch_asm::token_value::VB: os << "VB"; break;
-    case qch_asm::token_value::VC: os << "VC"; break;
-    case qch_asm::token_value::VD: os << "VD"; break;
-    case qch_asm::token_value::VE: os << "VE"; break;
-    case qch_asm::token_value::VF: os << "VF"; break;
+    case qch_asm::token_value::REGISTER: os << "REGISTER(" << t.ival << ")"; break;
     case qch_asm::token_value::INT_LITERAL: os << "INT_LITERAL(" << t.ival << ")"; break;
     case qch_asm::token_value::LABEL: os << "LABEL(" << t.sval << ")"; break;
     case qch_asm::token_value::DATA: os << "DATA" << t.sval << ""; break;

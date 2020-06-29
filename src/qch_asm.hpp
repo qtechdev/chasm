@@ -41,6 +41,11 @@ namespace qch_asm {
 
   token_t str_to_token(const std::string &s);
   uint16_t tokens_to_binary(const std::vector<token_t> &t);
+
+  void build_tables();
+  static fsm::fsm_table opcode_table;
+  static fsm::fsm_table register_table;
+  static fsm::fsm_table data_table;
 }
 
 
