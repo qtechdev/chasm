@@ -34,7 +34,7 @@ std::vector<std::string> read_lines(const std::string &path) {
 
 int main(int argc, const char *argv[]) {
   xdg::base base_dirs = xdg::get_base_directories();
-  auto program_files = xdg::search_data_dirs(base_dirs, "qchip", program_re);
+  auto program_files = xdg::search_data_dirs(base_dirs, "qch_asm", program_re);
 
   int index = 0;
   while ((index < 1) || (index > program_files.size())) {
