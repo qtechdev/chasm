@@ -1,8 +1,0 @@
-clear
-mov &0 0x1
-mov &1 0x1
-key &2
-clear
-sprite &2
-draw &0 &1 0x5
-jmp 0x206
