@@ -8,20 +8,16 @@
 #include <ostream>
 #endif
 
+#include <qch_vm/spec.hpp>
+
 #include "util/fsm.hpp"
 
 namespace qch_asm {
   enum class error_t;
 
-  enum class token_type;
-  enum class token_value;
-
-  struct token_t {
-    token_type type;
-    token_value value;
-    uint16_t ival = 0;
-    std::string sval = "";
-  };
+  static const std::string R_STRING = "REGISTER";
+  static const std::string I_STRING = "INT_LITERAL";
+  static const std::string D_STRING = "DATA";
 
   class assembler {
   public:
@@ -29,23 +25,29 @@ namespace qch_asm {
     std::vector<uint8_t> operator()(const std::vector<std::string> &lines);
 
     std::vector<std::string> scan(const std::string &s, error_t &error);
-    std::vector<token_t> eval(
+
+    std::vector<qch::instruction> eval(
       const std::vector<std::string> &s, error_t &error
     );
   private:
     static constexpr uint16_t entry_point = 0x200;
     uint16_t current_address;
     std::map<std::string, int> labels;
-    std::vector<std::vector<qch_asm::token_t>> tokenised;
+    std::vector<std::vector<qch::instruction>> instructions;
   };
 
-  token_t str_to_token(const std::string &s);
-  uint16_t tokens_to_binary(const std::vector<token_t> &t);
+  qch::instruction str_to_token(const std::string &s);
+  uint16_t tokens_to_binary(const std::vector<qch::instruction> &t);
+
+  void build_tables();
+  static fsm::fsm_table opcode_table;
+  static fsm::fsm_table register_table;
+  static fsm::fsm_table data_table;
 }
 
 
 #ifdef DEBUG
-std::ostream &operator<<(std::ostream &os, const qch_asm::token_t &t);
+std::ostream &operator<<(std::ostream &os, const qch::instruction &t);
 #endif
 
 #endif // __QCH_ASM_HPP__

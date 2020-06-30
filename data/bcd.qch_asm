@@ -1,0 +1,27 @@
+jmp :main
+
+:draw_char
+mov &9 0x6
+draw &a &b 0x5
+addr &a &9
+seq &f 0x1
+ret
+mov &a 0x1
+addr &b &9
+ret
+
+:main
+clear
+rand &6 0xff
+movi 0xf00
+bcd &6
+ldr &3
+mov &b 0x1
+mov &a 0x1
+sprite &0
+call :draw_char
+sprite &1
+call :draw_char
+sprite &2
+call :draw_char
+halt

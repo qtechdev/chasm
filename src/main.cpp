@@ -56,6 +56,7 @@ int main(int argc, const char *argv[]) {
   );
   std::vector<std::string> lines = read_lines(program_path);
 
+  qch_asm::build_tables();
   qch_asm::assembler ch;
   std::vector<uint8_t> program;
   try {
