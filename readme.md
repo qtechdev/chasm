@@ -1,7 +1,7 @@
 # qch_asm
 Converts qChip assembly to chip8 instructions.
 
-- see [assembly.md](docs/assembly.md) for spec
+- uses `spec.hpp` file from `qch_vm`
 - can handle labels used by jump instructions
 - calculate label offsets with a fist pass (allows use before definition)
 - add a way to specify data in assembly file
