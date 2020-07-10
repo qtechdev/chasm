@@ -70,6 +70,21 @@ int main(int argc, const char *argv[]) {
 
   #ifdef DEBUG
   char buf[3];
+
+  auto raw_header = qch::get_header(program);
+
+  std::cout << "RAW HEADER: ";
+  for (const auto &b : *raw_header) {
+    snprintf(buf, 3, "%02x", b);
+    std::cout << buf << " ";
+  }
+  std::cout << "\n";
+
+  qch::header header = qch::parse_header(program);
+
+  std::cout << "HEADER: w=" << +header.w << " h=" << +header.h << "\n";
+
+  std::cout << "PROGRAM: ";
   for (const auto &b : program) {
     snprintf(buf, 3, "%02x", b);
     std::cout << buf << " ";

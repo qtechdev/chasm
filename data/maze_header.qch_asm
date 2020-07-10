@@ -1,0 +1,45 @@
+// using dynamic display width and height
+// width = &c, height = &d
+clear
+mov &0 0x0
+mov &1 0x0
+
+:loop
+call :pick_random_sprite
+draw &0 &1 0x4
+add &0 0x4
+
+:new_line
+seqr &0 &c
+jmp :loop
+mov &0 0x0
+add &1 0x4
+
+:end_program
+seqr &1 &d
+jmp :loop
+halt
+
+:pick_random_sprite
+movi :slash
+rand &2 0x1
+seq &2 0x1
+movi :back_slash
+ret
+
+:slash
+$ 0x1020
+$ 0x4080
+:back_slash
+$ 0x8040
+$ 0x2010
+
+:header
+$ 0xc8c8
+$ 0x0101
+$ 0x0000
+$ 0x8040
+$ 0x0000
+$ 0x0000
+$ 0x0000
+$ 0x0000
