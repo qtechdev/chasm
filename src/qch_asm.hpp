@@ -43,6 +43,7 @@ namespace qch_asm {
   static fsm::fsm_table opcode_table;
   static fsm::fsm_table register_table;
   static fsm::fsm_table data_table;
+  static fsm::fsm_table comment_table;
 }
 
 

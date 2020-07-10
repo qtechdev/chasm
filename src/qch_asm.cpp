@@ -54,18 +54,6 @@ namespace qch_asm {
     bad_arg_count = 3,
     bad_arg_type = 4
   };
-
-  /*
-  token_t to qch::instruction
-
-  qch::instruction  = { uint16_t, uint16_t, uint16_t, args_config,  std:string }
-  OPCODE            = { value,    mask,     data,     args,         name }
-  REGISTER          = { value,    0x000f,   0x0001,   Z,            R_STRING }
-  INT_LITERAL       = { value,    0x0fff,   0x0002,   Z,            I_STRING }
-  LABEL             = { address,  0x0fff,   0x0003,   Z,            label }
-  DATA              = { 0x0000,   0x0000,   0x0004,   D,            D_STRING }
-  UNKNOWN           = { 0xdead,   0xbeef,   0x0000,   Z,            "UNKNOWN" }
-  */
 }
 
 void qch_asm::build_tables() {
@@ -84,8 +72,8 @@ void qch_asm::build_tables() {
   }
 
   register_table = fsm::make_table(registers);
-
   data_table = fsm::make_table({qch::data_token.data()});
+  comment_table = fsm::make_table({qch::comment_token.data()});
 }
 
 qch_asm::assembler::assembler() {
@@ -107,6 +95,17 @@ std::vector<uint8_t> qch_asm::assembler::operator()(
     }
     line_number++;
 
+    // check for comment
+    auto status = fsm::check(line, comment_table);
+    if (status == fsm::error_code::success) {
+      #ifdef DEBUG
+      std::cout << "Line " << line_number << ": (COMMENT) : " << line << "\n";
+      #endif
+
+      continue;
+    }
+
+
     error_t error = error_t::success;
     std::vector<std::string> split_line = scan(line, error);
 
@@ -123,6 +122,10 @@ std::vector<uint8_t> qch_asm::assembler::operator()(
         line_number, line.c_str()
       );
       throw std::invalid_argument(buf);
+    }
+
+    if (split_line.size() == 0) {
+      continue;
     }
 
     std::vector<qch::instruction> tokens = eval(split_line, error);
